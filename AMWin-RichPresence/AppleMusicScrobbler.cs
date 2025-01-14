@@ -35,7 +35,8 @@ namespace AMWin_RichPresence {
 
     }
 
-    internal abstract class AppleMusicScrobbler<C> where C : IScrobblerCredentials {
+    internal abstract class AppleMusicScrobbler<C> where C : IScrobblerCredentials
+    {
         protected int elapsedSeconds;
         protected string? lastSongID;
         protected bool hasScrobbled;
@@ -44,22 +45,55 @@ namespace AMWin_RichPresence {
         protected string serviceName;
         protected string region;
 
-        public AppleMusicScrobbler(string serviceName, string region, Logger? logger = null) {
+        public AppleMusicScrobbler(string serviceName, string region, Logger? logger = null)
+        {
             this.serviceName = serviceName;
             this.logger = logger;
             this.region = region;
         }
 
-        protected bool IsTimeToScrobble(AppleMusicInfo info) {
-            if (info.SongDuration.HasValue && info.SongDuration.Value >= 30) { // we should only scrobble tracks with more than 30 seconds
-                double halfSongDuration = info.SongDuration.Value / 2;
-                return elapsedSeconds >= halfSongDuration || elapsedSeconds >= 240; // half the song has passed or more than 4 minutes
+        protected bool IsTimeToScrobble(AppleMusicInfo info)
+        {
+            double duration = info.SongDuration.HasValue ? info.SongDuration.Value : 120; // Default to 2 minutes if missing
+            string durationSource = info.SongDuration.HasValue ? "Scraper/Last.fm" : "Fallback (Default)";
+
+            // Allow very short songs to scrobble based on their actual duration
+            if (duration < 30)
+            {
+                durationSource = "Short Song (Valid)";
+                logger?.Log($"[IsTimeToScrobble] Short song detected: elapsedSeconds: {elapsedSeconds}, halfDuration: {duration / 2}, SongDuration: {duration}, Source: {durationSource}");
+                return elapsedSeconds >= (duration / 2); // Scrobble after 50% playback
             }
-            return elapsedSeconds > Constants.LastFMTimeBeforeScrobbling;
+
+            // Override invalid durations
+            if (duration > 600)
+            {
+                duration = 210; // Fallback for absurdly long durations
+                durationSource = "Fallback (Invalid)";
+                logger?.Log($"[IsTimeToScrobble] Overridden invalid SongDuration to {duration}, Source: {durationSource}");
+            }
+
+            // Default logic for other songs
+            double halfSongDuration = duration / 2;
+            bool conditionMet = elapsedSeconds >= halfSongDuration || elapsedSeconds >= 120;
+
+            logger?.Log($"[IsTimeToScrobble] elapsedSeconds: {elapsedSeconds}, halfSongDuration: {halfSongDuration}, " +
+                        $"SongDuration: {duration}, Condition Met: {conditionMet}, Source: {durationSource}");
+
+            return conditionMet;
         }
 
-        protected bool IsRepeating(AppleMusicInfo info) {
-            if (info.CurrentTime.HasValue && info.SongDuration.HasValue) {
+
+
+
+
+
+
+
+        protected bool IsRepeating(AppleMusicInfo info)
+        {
+            if (info.CurrentTime.HasValue && info.SongDuration.HasValue)
+            {
                 double currentTime = info.CurrentTime.Value;
                 double songDuration = info.SongDuration.Value;
                 double repeatThreshold = 1.5 * Constants.RefreshPeriod;
@@ -77,22 +111,49 @@ namespace AMWin_RichPresence {
 
         protected abstract Task ScrobbleSong(string artist, string album, string song);
 
-        public async void Scrobbleit(AppleMusicInfo info) {
-            // This gets called every five seconds (Constants.RefreshPeriod) when a song is playing. There are some rules before we want to scrobble.
-            // First, when the song changes, start start "our" timer over at 0.  Every time this gets called, increment by five seconds (RefreshPeriod).
-            // If we hit the threshold (Constants.LastFMTimeBeforeScrobbling) then go ahead and Scrobble it.  Note that this works well because this method
-            //    never gets called when the song is paused!  Also, make sure that we don't keep re-Scrobbling, so set a variable "hasScrobbled" for each song.
-            //
-            // Important caveat:  this does not have any "Scrobbler queue" built in - so only real-time Scrobbling will work (no offline capability).  Fair trade-off
-            //    until an official Scrobbler is released.
+        public async void Scrobbleit(AppleMusicInfo info)
+        {
+            try
+            {
+                string durationSource = "Unknown"; // Track the source of the duration
 
-            try {
+                // Log song information
+                logger?.Log($"[{serviceName} scrobbler] Info: " +
+                    $"Artist: {info.SongArtist}, Name: {info.SongName}, Album: {info.SongAlbum}, " +
+                    $"Duration: {info.SongDuration}, CurrentTime: {info.CurrentTime}");
+
+                // Determine the source of the duration
+                if (!info.SongDuration.HasValue)
+                {
+                    info.SongDuration = 120; // Default fallback duration
+                    durationSource = "Fallback (Default)";
+                }
+                else if (info.SongDuration > 600 || info.SongDuration < 10)
+                {
+                    durationSource = info.SongDuration < 10 ? "Too Short (Skipped)" : "Invalid (Fallback)";
+                    if (info.SongDuration < 10)
+                    {
+                        logger?.Log($"[{serviceName} scrobbler] Skipping very short song: {info.SongName} (Duration: {info.SongDuration} seconds)");
+                        return; // Skip very short songs
+                    }
+
+                    info.SongDuration = 210; // Override with default duration
+                    durationSource = "Fallback (Invalid)";
+                }
+                else
+                {
+                    durationSource = "Valid (Scraper or Last.fm)";
+                }
+
+                logger?.Log($"[{serviceName} scrobbler] Duration source: {durationSource}, Final Duration: {info.SongDuration} seconds");
+
                 var thisSongID = info.SongArtist + info.SongName + info.SongAlbum;
                 var webScraper = new AppleMusicWebScraper(info.SongName, info.SongAlbum, info.SongArtist, region);
                 var artist = Properties.Settings.Default.LastfmScrobblePrimaryArtist ? (await webScraper.GetArtistList()).FirstOrDefault(info.SongArtist) : info.SongArtist;
                 var album = Properties.Settings.Default.LastfmCleanAlbumName ? AlbumCleaner.CleanAlbumName(info.SongAlbum) : info.SongAlbum;
 
-                if (thisSongID != lastSongID) {
+                if (thisSongID != lastSongID)
+                {
                     lastSongID = thisSongID;
                     elapsedSeconds = 0;
                     hasScrobbled = false;
@@ -100,30 +161,51 @@ namespace AMWin_RichPresence {
 
                     await UpdateNowPlaying(artist, album, info.SongName);
                     logger?.Log($"[{serviceName} scrobbler] Updated now playing: {lastSongID}");
-                } else {
+                }
+                else
+                {
                     elapsedSeconds += Constants.RefreshPeriod;
 
-                    if (hasScrobbled && IsRepeating(info)) {
-                        hasScrobbled = false;
-                        elapsedSeconds = 0;
-                        logger?.Log($"[{serviceName} scrobbler] Repeating Song: {lastSongID}");
+                    logger?.Log($"[{serviceName} scrobbler] elapsedSeconds: {elapsedSeconds}, hasScrobbled: {hasScrobbled}");
+                    logger?.Log($"[{serviceName} scrobbler] IsTimeToScrobble: {IsTimeToScrobble(info)}");
+
+                    if (hasScrobbled && IsRepeating(info))
+                    {
+                        if (elapsedSeconds > Constants.RefreshPeriod)
+                        {
+                            hasScrobbled = false;
+                            elapsedSeconds = 0;
+                            logger?.Log($"[{serviceName} scrobbler] Repeating Song: {lastSongID}");
+                        }
                     }
 
-                    if (IsTimeToScrobble(info) && !hasScrobbled) {
+                    if (IsTimeToScrobble(info) && !hasScrobbled)
+                    {
                         logger?.Log($"[{serviceName} scrobbler] Scrobbling: {lastSongID}");
-                        await ScrobbleSong(artist, album, info.SongName);
-                        hasScrobbled = true;
+                        try
+                        {
+                            await ScrobbleSong(artist, album, info.SongName);
+                            hasScrobbled = true;
+                            logger?.Log($"[{serviceName} scrobbler] Successfully scrobbled: {info.SongName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.Log($"[{serviceName} scrobbler] Failed to scrobble: {ex}");
+                        }
                     }
 
                     lastSongProgress = info.CurrentTime ?? 0.0;
                 }
-            } catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 logger?.Log($"[{serviceName} scrobbler] An error occurred while scrobbling: {ex}");
             }
         }
     }
 
-    internal class AppleMusicLastFmScrobbler : AppleMusicScrobbler<LastFmCredentials> {
+
+        internal class AppleMusicLastFmScrobbler : AppleMusicScrobbler<LastFmCredentials> {
         private LastAuth? lastfmAuth;
         private IScrobbler? lastFmScrobbler;
         private ITrackApi? trackApi;
