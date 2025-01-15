@@ -58,7 +58,7 @@ namespace AMWin_RichPresence {
             string durationSource = info.SongDuration.HasValue ? "Scraper/Last.fm" : "Fallback (Default)";
 
             // Allow very short songs to scrobble based on their actual duration
-            if (duration < 30)
+            if (duration < 75)
             {
                 durationSource = "Short Song (Valid)";
                 logger?.Log($"[IsTimeToScrobble] Short song detected: elapsedSeconds: {elapsedSeconds}, halfDuration: {duration / 2}, SongDuration: {duration}, Source: {durationSource}");
@@ -128,15 +128,8 @@ namespace AMWin_RichPresence {
                     info.SongDuration = 120; // Default fallback duration
                     durationSource = "Fallback (Default)";
                 }
-                else if (info.SongDuration > 600 || info.SongDuration < 10)
+                else if (info.SongDuration > 600)
                 {
-                    durationSource = info.SongDuration < 10 ? "Too Short (Skipped)" : "Invalid (Fallback)";
-                    if (info.SongDuration < 10)
-                    {
-                        logger?.Log($"[{serviceName} scrobbler] Skipping very short song: {info.SongName} (Duration: {info.SongDuration} seconds)");
-                        return; // Skip very short songs
-                    }
-
                     info.SongDuration = 210; // Override with default duration
                     durationSource = "Fallback (Invalid)";
                 }
