@@ -175,17 +175,19 @@ namespace AMWin_RichPresence {
                     if (IsTimeToScrobble(info) && !hasScrobbled)
                     {
                         logger?.Log($"[{serviceName} scrobbler] Scrobbling: {lastSongID}");
+                        hasScrobbled = true; // Move this line up to prevent double scrobbles
                         try
                         {
                             await ScrobbleSong(artist, album, info.SongName);
-                            hasScrobbled = true;
                             logger?.Log($"[{serviceName} scrobbler] Successfully scrobbled: {info.SongName}");
                         }
                         catch (Exception ex)
                         {
                             logger?.Log($"[{serviceName} scrobbler] Failed to scrobble: {ex}");
+                            hasScrobbled = false; // Reset only if scrobble fails
                         }
                     }
+
 
                     lastSongProgress = info.CurrentTime ?? 0.0;
                 }
