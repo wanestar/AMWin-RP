@@ -1,7 +1,7 @@
 # AMWin-RP
 ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/downloads-pre/PKBeam/AMWin-RP/total) ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/downloads-pre/PKBeam/AMWin-RP/latest/total)  
 
-#Fork with improved scrobbling support, including better duration matching and support for songs under 30 seconds. Discord integration is not functional in this fork.
+# Fork with improved scrobbling support, including better duration matching and support for songs under 30 seconds. Discord integration is not functional in this fork.
 
 Last.FM scrobbling is also supported!
 
