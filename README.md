@@ -2,6 +2,7 @@
 ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/downloads-pre/PKBeam/AMWin-RP/total) ![GitHub release (latest by date including pre-releases)](https://img.shields.io/github/downloads-pre/PKBeam/AMWin-RP/latest/total)  
 
 
+# No discord integration, see the testing branch for new features.
 Last.FM scrobbling is also supported!
 
 [日本語 (Japanese README)](https://github.com/PKBeam/AMWin-RP/blob/master/README-JA.md)
